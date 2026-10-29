@@ -1,0 +1,18 @@
+# Kernel build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.order
+*.symvers
+.*.cmd
+*.o.d
+.tmp_versions/
+modules/.*.cmd
+modules/*.o
+modules/*.ko
+modules/*.mod
+modules/*.mod.c
+modules/*.order
+modules/*.symvers
+modules/*.o.d
