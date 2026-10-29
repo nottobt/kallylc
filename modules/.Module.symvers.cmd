@@ -1,0 +1,1 @@
+savedcmd_/home/nottobt/lincrash/modules/Module.symvers :=  scripts/mod/modpost -M -m       -o /home/nottobt/lincrash/modules/Module.symvers -n -T /home/nottobt/lincrash/modules/modules.order -i Module.symvers -e 
