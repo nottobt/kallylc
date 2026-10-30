@@ -16,7 +16,7 @@
 
 > Run KallyLC only in a disposable virtual machine or other isolated test environment. Do not run it on a production system or a machine containing important data.
 
-> The author and contributors provide this software without warranty, subject to the terms of the GNU General Public License, version 2.0 only (GPL-2.0-only). They disclaim liability to the extent permitted by applicable law. See the accompanying `LICENSE` file for the complete license terms.
+> The author and contributors provide this software without warranty, subject to the terms of the GNU Affero General Public License, version 3.0 or later (AGPL-3.0-or-later). They disclaim liability to the extent permitted by applicable law. See the accompanying `LICENSE` file for the complete license terms.
 
 ---
 
