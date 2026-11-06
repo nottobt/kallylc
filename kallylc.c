@@ -7,7 +7,12 @@
  */
 
 #include "include/kallylc.h"
+#include <stddef.h>
+#include <stdint.h>
 
+volatile __sig_atomic_t running = 1;
+char star[31];
+char dash[31];
 int logs(long long errcode, const char *format, ...) {
     char formlog[1024];
     char message[512];
@@ -102,6 +107,7 @@ int getroot(void) {
 
 void init() {
     getroot();
+    disp();
     int result = remdir(TMPDIR);
     if (result == 0) {
         printf("Deleting directory completed successfully.\n");
@@ -122,7 +128,48 @@ void init() {
         printf("Error code %i: Unable to make directory. Do you have access to /tmp or are you running out of space?\n", result);
         exit(0);
     }
-    system("clear");
+}
+
+int cleanup(char SIGTYPE[]) {
+    int status;
+    int opt;
+    disp();
+    if (strcmp(SIGTYPE, "none") == 0) { printf("Cleaning up...\n"); } else { printf("Cleaning up due to signal %s", SIGTYPE); }
+    switch (opt) {
+        case 4:
+            printf("Deleting temporary files (From Option 4: LKM (Linux Kernel Modules))...");
+            status = remdir("/tmp/kallylc/moduletmp");
+            break;
+        case 8:
+            printf("Deleting temporary files (From Option 8: Inode Exhaustion)");
+            status = remdir("/tmp/kallylc/inexh");
+            break;
+        case 9:
+            printf("Deleting temporary files (From Option 9: Filesystem space exhaustion)");
+            status = remdir("/tmp/kallylc/fsexh");
+            break;
+        default:
+            printf("No other directory detected.");
+    }
+    if (status != 0) {
+        printf("Clean failed.");
+        exit(1);
+    }
+    printf("Clean-up finished. Exiting...");
+    exit(0);
+}
+
+void HSINT(int sig) {
+    (void)sig;
+    running = 0;
+}
+
+void disp() {
+    for (int i = 0; i < 29; i++) { star[i] = '*'; }
+    for (int i = 0; i < 29; i++) { dash[i] = '-'; }
+    star[30] = '\0';
+    dash[30] = '\0';
+    printf("%s\nKallyLC %s (https://github.com/nottobt/kallylc)\nCopyright (c) NotToBT <nottobf@gmail.com>, 2026.\n%s\n\n", star, UFVER, star);
 }
 
 void print_usage(char *prog_name) {
@@ -138,7 +185,7 @@ int opt1(void) {
     char *buffer = mmap(NULL, pagesize, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
     if (buffer == MAP_FAILED) {
         perror("mmap failed");
-        logs(1, "Nmap Failure: exiting...");
+        logs(1, "Mmap Failure: exiting...");
         return 1;
     }
     buffer[0] = 'X';
@@ -262,7 +309,6 @@ int opt4(void) {
 
 int opt5(void) {
     int cho;
-    system("clear");
     printf("Memory Leaker!");
     logs(0, "Memory leaker chosen. (opt4)");
     printf("Select the memory size:");
@@ -336,39 +382,113 @@ int opt7(void) {
 }
 
 int opt8(void) {
-    printf("Buffer overflow!\n");
-    logs(0, "Triggering buffer overflow....\n");
-    char *arr = malloc(5);
-    strcpy(arr, "WINDOWS");
-    return 0;
+    printf("Inode exhaustion!\n");
+    printf("WARNING: This program WILL exhaust your filesystem out of inodes. Your browser tabs (and some logging system/apps which use lock files WILL BECOME BROKEN. YOU ARE ADVISED. ONLY RUN THIS IN A VM.\nPress any key to continue...");
+    getchar();
+    printf("\nExhausting filesysten inodes...\n");
+    unsigned long long count = 0;
+    unsigned int multiple = 0;
+    char dir[200];
+    char dir1[200] = "/tmp/kallylc/inexh/inexhd-0";
+    mkdir("/tmp/kallylc/inexh", 0777);
+    struct timespec stin, enin, stdel, endel;
+    clock_gettime(CLOCK_MONOTONIC, &stin);
+    mkdir(dir1, 0777);
+    while (1) {
+        snprintf(dir, sizeof(dir), "/tmp/kallylc/inexh/inexhd-%u/inexh-%llu", multiple, count);
+        int FILEPTR = open(dir, O_CREAT | O_WRONLY, 0644);
+        if (FILEPTR <- 0) {
+            perror("Filesystem inode count full; aborting...");
+            clock_gettime(CLOCK_MONOTONIC, &stdel);
+            logs(1, "Filesystem inode count full; allocated approximately %llu inodes. Deleting %llu files...", count, count);
+            remdir("/tmp/kallylc/inexh");
+            clock_gettime(CLOCK_MONOTONIC, &endel);
+            double ttaken = (endel.tv_sec - stdel.tv_sec) * 1000.0 + (endel.tv_nsec - stdel.tv_nsec) / 1000000.0;
+            logs(0, "All files deleted in %f milliseconds. Exiting program...", ttaken);
+            exit(1);
+        }
+        close(FILEPTR);
+        if (count % 20000 == 0 && count != 0) {
+            clock_gettime(CLOCK_MONOTONIC, &enin);
+            double ttaken = (enin.tv_sec - stin.tv_sec) * 1000.0 + (enin.tv_nsec - stin.tv_nsec) / 1000000.0;
+            logs(0, "20000 inodes allocated in %f milliseconds.", ttaken);
+            clock_gettime(CLOCK_MONOTONIC, &stin);
+            snprintf(dir1, sizeof(dir1), "/tmp/kallylc/inexh/inexhd-%u", multiple);
+            multiple++;
+            mkdir(dir1, 0777);
+        }
+        count++;
+    }
+}
+
+int opt9(void) {
+    printf("Filesystem space exhaustion!\n");
+    printf("WARNING: This program WILL exhaust your filesystem out of space. Your browser tabs (and some logging system/apps which use the logging function and other temporary disk caches WILL BECOME BROKEN. YOU ARE ADVISED. ONLY RUN THIS IN A VM.\nPress any key to continue...");
+    getchar();
+    printf("\nExhausting filesystem space...\n");
+    unsigned long count = 0;
+    char fnbuf[200];
+    const char dir[] = "/tmp/kallylc/fsexh";
+    size_t bufsize = 4096;
+    size_t filesize = 1024ULL * 1024 * 512;
+    struct timespec sfw, efw;
+    unsigned long long twritten = 0;
+    unsigned long written = 0;
+    uint8_t *buffer = malloc(bufsize);
+    if (buffer == NULL) {
+        logs(1, "Memory buffer allocation failed.");
+        exit(1);
+    }
+    memset(buffer, 0xFF, bufsize);
+    mkdir(dir, 0777);
+    while (1) {
+        twritten = 0;
+        snprintf(fnbuf, sizeof(fnbuf), "/tmp/kallylc/fsexh/fsexh-buf-%lu", count);
+        int fp = open(fnbuf, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+        if (fp < 0) {
+            close(fp);
+            logs(1, "Filesystem allocation failed without any files allocated, probably because the filesystem inode count is full or permission errors");
+            exit(0);
+        }
+        clock_gettime(CLOCK_MONOTONIC, &sfw);
+        while (twritten < filesize) {
+            ssize_t written = write(fp, buffer, bufsize);
+            if (written <= 0) {
+                if (count == 0) {
+                    printf("File writing process failed without any files actually written, check filesystem for errors.\n");
+                    exit(0);
+                }
+                printf("File writing process failed after %lu files written and %llu bytes written to filesystem.", count, (unsigned long long)(count * filesize));
+                close(fp);
+                remdir(dir);
+                logs(0, "File writing process failed. Exiting....");
+                cleanup("none");
+            }
+            twritten += written;
+        }
+        clock_gettime(CLOCK_MONOTONIC, &efw);
+        double ttaken = (efw.tv_sec - sfw.tv_sec) * 1000.0 + (efw.tv_nsec - sfw.tv_nsec) / 1000000.0;
+        logs(0, "Written %lld bytes to file %s in %f milliseconds.", filesize, fnbuf, ttaken);
+        if (count % 10 == 0 && count != 0) {
+            logs(0, "Written 10 files with file size %lld, for a total of approximately %llu bytes.", filesize, (unsigned long long)((count * filesize)));
+        }
+        count++;
+        close(fp);
+    }
+    free(buffer);
 }
 
 int ch(const int usrch) {
     switch (usrch) {
-        case 1:
-            opt1();
-            break;
-        case 2:
-            opt2();
-            break;
-        case 3:
-            opt3();
-            break;
-        case 4:
-            opt4();
-            break;
-        case 5:
-            opt5();
-            break;
-        case 6:
-            opt6();
-            break;
-        case 7:
-            opt7();
-            break;
-        case 8:
-            opt8();
-            break;
+        case 1: opt1(); break;
+        case 2: opt2(); break;
+        case 3: opt3(); break;
+        case 4: opt4(); break;
+        case 5: opt5(); break;
+        case 6: opt6(); break;
+        case 7: opt7(); break;
+        case 8: opt8(); break;
+        case 9: opt9(); break;
         default:
             printf("Wrong choice. Exiting...");
             logs(1, "User chose wrong choice. The program will exit.");
@@ -384,6 +504,7 @@ void ver() {
 int main(int argc, char *argv[]) {
     int choice = 0;
     int opt;
+    signal(SIGINT, HSINT);
     struct option long_options[] = {
         {"option",  required_argument, NULL, 'o'},
         {"version", no_argument,       NULL, 'v'},
@@ -403,23 +524,16 @@ int main(int argc, char *argv[]) {
                 printf("Choice set to: %d\n", choice);
                 break;
             }
-            case 'v':
-                ver();
-                return 0;
-            case 'h':
-                print_usage(argv[0]);
-                return 0;
-            case '?':
-                return 1;
-            default:
-                return 1;
+            case 'v': ver(); return 0;
+            case 'h': print_usage(argv[0]); return 0;
+            case '?': return 1;
+            default: return 1;
         }
     }
     for (int i = optind; i < argc; i++) {
         printf("Non-option/Positional argument: %s\n", argv[i]);
     }
     char str2[256];
-    system("clear");
     init();
     printf("Welcome to KallyLC %s!\n", VER);
     if (DEBUG_MODE == 1) {
@@ -427,8 +541,7 @@ int main(int argc, char *argv[]) {
         logs(0, "Debug mode is active.");
     }
     if (PROT_DISABLE == 1) {
-        system("clear");
-        logs(1, "Protection mode is active. The program cannot continue.");
+        logs(1, "Protection mode is active. Your version of KallyLC was compiled to disable ALL destructive features, everything is destructive. The program cannot continue.");
         exit(1);
     }
     if (choice != 0) {
@@ -439,14 +552,11 @@ int main(int argc, char *argv[]) {
         getchar();
         ch(choice);
     }
-    printf("You have %d options:\n", OPTCOUNT);
-    printf("The options are:\n");
-    printf("1: MCE hardware corruption\n[User-Kernel space]\n2: General Protection Fault (#GP) [User space]\n3: Null Pointer Dereference / Segmentation fault [User space]\n4: Kernel-level errors (%i choices) [Kernel space]\n5: Memory leak via memory allocation\n6: Fork bomb\n7: File descriptor exhaustion\n8: Buffer overflow\n", KRNLCH);
+    printf("You have %d options:\nThe options are:\n 1: MCE hardware corruption\n\t[User-Kernel space]\n2: General Protection Fault (#GP) [User space]\n3: Null Pointer Dereference / Segmentation fault [User space]\n4: Kernel-level errors (%i choices) [Kernel space]\n5: Memory leak via memory allocation\n6: Fork bomb\n7: File descriptor exhaustion\n8: Inode exhaustion\n9: Filesystem space exhaustion\n", OPTCOUNT, KRNLCH);
     printf("Choice? ");
     scanf("%i", &choice);
     snprintf(str2, sizeof(str2), "User chose choice: %i", choice);
     logs(0, str2);
-    system("clear");
     ch(choice);
     return 0;
 }
